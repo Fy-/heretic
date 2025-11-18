@@ -215,10 +215,17 @@ class Model:
                 )
 
                 for matrix in matrices:
-                    # Convert projector to match actual matrix dtype (handles FP8 models)
-                    projector_typed = projector.to(matrix.dtype)
-                    # In-place subtraction is safe as we're not using Autograd.
-                    matrix.sub_(weight * (projector_typed @ matrix))
+                    # FP8 doesn't support matmul - convert to BF16 for operation
+                    if matrix.dtype == torch.float8_e4m3fn:
+                        # Convert to BF16, do operation, convert back
+                        matrix_bf16 = matrix.to(torch.bfloat16)
+                        projector_bf16 = projector.to(torch.bfloat16)
+                        result = matrix_bf16.sub_(weight * (projector_bf16 @ matrix_bf16))
+                        matrix.copy_(result.to(torch.float8_e4m3fn))
+                    else:
+                        # Original path for non-FP8 dtypes
+                        projector_typed = projector.to(matrix.dtype)
+                        matrix.sub_(weight * (projector_typed @ matrix))
 
     def get_chat(self, prompt: str) -> list[dict[str, str]]:
         return [
