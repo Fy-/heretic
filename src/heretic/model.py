@@ -212,11 +212,13 @@ class Model:
                 projector = torch.outer(
                     layer_refusal_direction,
                     layer_refusal_direction,
-                ).to(self.model.dtype)
+                )
 
                 for matrix in matrices:
+                    # Convert projector to match actual matrix dtype (handles FP8 models)
+                    projector_typed = projector.to(matrix.dtype)
                     # In-place subtraction is safe as we're not using Autograd.
-                    matrix.sub_(weight * (projector @ matrix))
+                    matrix.sub_(weight * (projector_typed @ matrix))
 
     def get_chat(self, prompt: str) -> list[dict[str, str]]:
         return [
